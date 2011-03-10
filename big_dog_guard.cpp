@@ -128,6 +128,7 @@ int main(int argc, char *argv[]) {
         }
         if (enable_rlimit()) {          // setrlimit() and we are about to exec
             ptrace(PTRACE_TRACEME, 0, NULL, NULL);
+            alarm(time_limit);
             execvp(executable, executable_argv);
 
             /* not reached or failed to execl */
@@ -303,15 +304,19 @@ void interpret_signal(int signal) {
         report("SIGNALED\nSIGSEGV\nRuntime Error (Segmentation violation)");
         break;
     case SIGXCPU:
-        report("SIGNALED\nSIGXCPU\ntTime Limit Exceeded");
+        report("SIGNALED\nSIGXCPU\nTime Limit Exceeded");
         break;
     case SIGUSR1:
         syslog("INTERNAL ERROR (SIGUSR1 catched)");
         exit(EXIT_FAILURE);
+        break;
+    case SIGALRM:
+        report("SIGNALED\nSIGALRM\ntTime Limit Exceeded");
+        break;
     default:
         char buf[128] = "SIGNALED\n";
         strcat(buf, Tcl_SignalId(signal));
-        strcat(buf, "unavailable");
+        strcat(buf, "\nunavailable");
         report(buf);
     }
 }
