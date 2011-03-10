@@ -128,7 +128,7 @@ int main(int argc, char *argv[]) {
         }
         if (enable_rlimit()) {          // setrlimit() and we are about to exec
             ptrace(PTRACE_TRACEME, 0, NULL, NULL);
-            alarm(time_limit);
+            alarm(2 * time_limit);
             execvp(executable, executable_argv);
 
             /* not reached or failed to execl */
