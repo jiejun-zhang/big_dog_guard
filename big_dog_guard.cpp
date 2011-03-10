@@ -287,7 +287,7 @@ void print_usage(int exitcode) {
     puts("  -i, --input <file>\t\tspecify the file from which stdin redrects");
     puts("  -o, --output <file>\t\tspecify the file to which stdout redrects");
     puts("  -e, --stderr <file>\t\tspecify the file to which stderr redrects");
-    puts("  --trust <file>\t\ttrust the program and do not deny any system call.");
+    puts("  --trust\t\t\ttrust the program and do not deny any system call.");
     exit(exitcode);
 }
 
