@@ -4,6 +4,12 @@ AUTHOR: JIEJUN ZHANG
 big_dog_guard is a wrapper to a program, preventing it from damaging
 the system and consuming too much resource.
 
+FEATURES:
++ time restriction (both user & real)
++ memory restriction
++ system call filter
++ stdin/stdout/stderr redirection
+
 RETURN VALUE SPECIFICATION
 EXIT_FAILURE: Internal error occuerd, such as setrlimit() failed. The
               output to stdout is not guaranteed to be complete or
@@ -98,6 +104,7 @@ rlim_t memory_limit = 128000000;            // memory limit in bytes, default 12
 uid_t uid;                                  // specified uid
 gid_t gid;                                  // specified gid
 bool prohibit_syscall = true;               // do we prohibit syscall?
+int file_size = 1000000;                    // maximum file size created by child, default 1M
 
 int main(int argc, char *argv[]) {
     parse_args(argc, argv);
@@ -131,7 +138,7 @@ int main(int argc, char *argv[]) {
             alarm(2 * time_limit);
             execvp(executable, executable_argv);
 
-            /* not reached or failed to execl */
+            /* not reached or failed to execvp */
             syslog("INTERNAL ERROR: execvp() failed.");
             raise(SIGUSR1);             // SIGUSR1: tell father that internal error occured
         } else {
@@ -203,6 +210,7 @@ int enable_rlimit() {
     struct rlimit lim;
     APPLY(RLIMIT_CPU, time_limit);          // time limit
     APPLY(RLIMIT_AS, memory_limit);         // memory limit
+    APPLY(RLIMIT_FSIZE, file_size);
     return 1;
 #   undef APPLY
 }
@@ -233,6 +241,13 @@ void parse_args(int argc, char *argv[]) {
                 exit(EXIT_FAILURE);
             }
             time_limit = tmp;
+            ++i;
+        } else if (strcmp(argv[i], "--fsize") == 0 || strcmp(argv[i], "-f") == 0) {
+            if (i + 1 == argc || sscanf(argv[i + 1], "%d", &tmp) != 1) {
+                fprintf(stderr, "Invalid operand for fsize.\n");
+                exit(EXIT_FAILURE);
+            }
+            file_size = tmp;
             ++i;
         } else if (strcmp(argv[i], "--memory") == 0 || strcmp(argv[i], "-m") == 0) {
             if (i + 1 == argc || sscanf(argv[i + 1], "%d", &tmp) != 1) {
@@ -288,6 +303,7 @@ void print_usage(int exitcode) {
     puts("  -i, --input <file>\t\tspecify the file from which stdin redrects");
     puts("  -o, --output <file>\t\tspecify the file to which stdout redrects");
     puts("  -e, --stderr <file>\t\tspecify the file to which stderr redrects");
+    puts("  -f, --fsize <byte>\t\tspecify the maximum file size created");
     puts("  --trust\t\t\ttrust the program and do not deny any system call.");
     exit(exitcode);
 }
@@ -311,7 +327,10 @@ void interpret_signal(int signal) {
         exit(EXIT_FAILURE);
         break;
     case SIGALRM:
-        report("SIGNALED\nSIGALRM\ntTime Limit Exceeded");
+        report("SIGNALED\nSIGALRM\nTime Limit Exceeded");
+        break;
+    case SIGXFSZ:
+        report("SIGNALED\nSIGXFSZ\nOutput Limit Exceeded");
         break;
     default:
         char buf[128] = "SIGNALED\n";
