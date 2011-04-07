@@ -12,51 +12,51 @@ FEATURES:
 
 RETURN VALUE SPECIFICATION
 EXIT_FAILURE: Internal error occuerd, such as setrlimit() failed. The
-              output to stdout is not guaranteed to be complete or
-              correct. An ``Internal Error'' should be reported to the
-              submitter
+output to stdout is not guaranteed to be complete or
+correct. An ``Internal Error'' should be reported to the
+submitter
 
 EXIT_SUCCESS: This program has done its jobs correctly. Its verdict
-              , as NORMAL EXIT, SIGNALED, etc. to stdout is correct
-              and complete.
+, as NORMAL EXIT, SIGNALED, etc. to stdout is correct
+and complete.
 
 
 Stdout contains the executing result:
 + Case 1: all is well
-        NORMAL_EXIT
-        [Time consumed (in second)] second
-        [Memory consumed (int byte)] byte
-        ^D
+NORMAL_EXIT
+[Time consumed (in second)] second
+[Memory consumed (int byte)] byte
+^D
 
 + Case 2: program ended with non-zero return value
-        NON-ZERO_RETURN_CODE
-        [return value]
-        ^D
+NON-ZERO_RETURN_CODE
+[return value]
+^D
 
-    In this case, the verdict is not necessarily to be "runtime error",
-    however I would recommend it.
+In this case, the verdict is not necessarily to be "runtime error",
+however I would recommend it.
 
 + Case 3: program is terminated by a signal
-        SIGNALD
-        [SIGNAL NAME]
-        [SUGGESTED VERDICT: Runtime Error, Time Limit Exceeded, etc.]
-        ^D
+SIGNALD
+[SIGNAL NAME]
+[SUGGESTED VERDICT: Runtime Error, Time Limit Exceeded, etc.]
+^D
 
-    In this case, a signal (except SIGTRAP, which triggers ptrace). Some
-    signals are interpreted as particular verdict, as SIGKILL=MLE. Others
-    are converted to signal name, as SIGPIPE, but not interpreted, so the
-    last line would be empty.
+In this case, a signal (except SIGTRAP, which triggers ptrace). Some
+signals are interpreted as particular verdict, as SIGKILL=MLE. Others
+are converted to signal name, as SIGPIPE, but not interpreted, so the
+last line would be empty.
 
 + Case 4: a prohibited system call is detected
-        RESTRICTED_SYSCALL
-        [SYSTEM CALL NAME]
-        ^D
+RESTRICTED_SYSCALL
+[SYSTEM CALL NAME]
+^D
 
-    In this case, child is killed.
+In this case, child is killed.
 
 + Case 5: internal error: exec failed, setrlimit failed, etc.
-    In this case, EXIT_FAILURE is returned. Messages in stdout is not
-    guaranteed to be correct.
+In this case, EXIT_FAILURE is returned. Messages in stdout is not
+guaranteed to be correct.
 
 Stderr contains more detailed informations, which could also be showed to
 the submitters, but it is intended to be debugging information.
@@ -81,30 +81,30 @@ TO-DOs:
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <tcl.h>                            // convert signal code to readable string
+#include <tcl.h> // convert signal code to readable string
 
-void report(const char *str);               // report our verdict
+void report(const char *str); // report our verdict
 void syslog(const char *str);
-int is_denied_syscall(int eax);             // being called every time a syscall is detected
-int enable_rlimit();                        // enable the resource limit
-void report_rusage();                       // report the resource usage
-void interpret_signal(int signal);          // interpret the signal which killed the child
-void parse_args(int argc, char *argv[]);    // parse command-line arguments
-void print_usage(int exit_code);            // print usage
+int is_denied_syscall(int eax); // being called every time a syscall is detected
+int enable_rlimit(); // enable the resource limit
+void report_rusage(); // report the resource usage
+void interpret_signal(int signal); // interpret the signal which killed the child
+void parse_args(int argc, char *argv[]); // parse command-line arguments
+void print_usage(int exit_code); // print usage
 
 char default_root_dir[] = "./";
-char *root_dir = default_root_dir;          // the root dir
-char *executable = NULL;                    // the file to be executed
-char **executable_argv = NULL;              // arguments provided to executable
-char *input_file = NULL;                    // input file (for redirection)
-char *output_file = NULL;                   // output file (for redirection)
-char *stderr_file = NULL;                   // stderr file (for redirection)
-rlim_t time_limit = 1;                      // time limit in second, default 1 second
-rlim_t memory_limit = 128000000;            // memory limit in bytes, default 128M
-uid_t uid;                                  // specified uid
-gid_t gid;                                  // specified gid
-bool prohibit_syscall = true;               // do we prohibit syscall?
-int file_size = 1000000;                    // maximum file size created by child, default 1M
+char *root_dir = default_root_dir; // the root dir
+char *executable = NULL; // the file to be executed
+char **executable_argv = NULL; // arguments provided to executable
+char *input_file = NULL; // input file (for redirection)
+char *output_file = NULL; // output file (for redirection)
+char *stderr_file = NULL; // stderr file (for redirection)
+rlim_t time_limit = 1; // time limit in second, default 1 second
+rlim_t memory_limit = 128000000; // memory limit in bytes, default 128M
+uid_t uid; // specified uid
+gid_t gid; // specified gid
+bool prohibit_syscall = true; // do we prohibit syscall?
+int file_size = 1000000; // maximum file size created by child, default 1M
 
 int main(int argc, char *argv[]) {
     parse_args(argc, argv);
@@ -116,35 +116,37 @@ int main(int argc, char *argv[]) {
     }
     if(child == 0) {
         /* child process */
-        if (input_file) {               // redirect input if specified
+        if (input_file) { // redirect input if specified
             int inf = open(input_file, O_RDONLY);
             dup2(inf, STDIN_FILENO);
             close(inf);
         }
-        if (output_file) {              // redirect output if specified
+        if (output_file) { // redirect output if specified
             int outf = open(output_file, O_WRONLY | O_CREAT);
             chmod(output_file, 0666);
             dup2(outf, STDOUT_FILENO);
             close(outf);
         }
-        if (stderr_file) {              // redirect stderr if specified
+        if (stderr_file) { // redirect stderr if specified
             int errf = open(stderr_file, O_WRONLY | O_CREAT);
             chmod(stderr_file, 0666);
             dup2(errf, STDERR_FILENO);
             close(errf);
         }
-        if (enable_rlimit()) {          // setrlimit() and we are about to exec
-            ptrace(PTRACE_TRACEME, 0, NULL, NULL);
+        if (enable_rlimit()) { // setrlimit() and we are about to exec
+            if (prohibit_syscall) {
+                ptrace(PTRACE_TRACEME, 0, NULL, NULL);
+            }
             alarm(2 * time_limit);
             execvp(executable, executable_argv);
 
             /* not reached or failed to execvp */
             syslog("INTERNAL ERROR: execvp() failed.");
-            raise(SIGUSR1);             // SIGUSR1: tell father that internal error occured
+            raise(SIGUSR1); // SIGUSR1: tell father that internal error occured
         } else {
             /* failed to set resource limit */
             syslog("INTERNAL ERROR: setrlimit() failed.");
-            raise(SIGUSR1);             // SIGUSR1: tell father that internal error occured
+            raise(SIGUSR1); // SIGUSR1: tell father that internal error occured
         }
     } else {
         /* father process */
@@ -152,36 +154,38 @@ int main(int argc, char *argv[]) {
             int status;
             wait(&status);
             if (WIFEXITED(status) || (WIFSTOPPED(status) && WSTOPSIG(status) == SIGCHLD)) {
-                if (WIFSTOPPED(status) || WEXITSTATUS(status) == 0) {             // normal exit, report resource usage
+                if (WIFSTOPPED(status) || WEXITSTATUS(status) == 0) { // normal exit, report resource usage
                     syslog("program exited normally");
                     report("NORMAL_EXIT");
                     report_rusage();
                     exit(EXIT_SUCCESS);
-                } else {                                    // non-zero returned
+                } else { // non-zero returned
                     char buf[20];
                     sprintf(buf, "NON-ZERO_RETURN_CODE\n%d", WEXITSTATUS(status));
                     report(buf);
                     exit(EXIT_SUCCESS);
                 }
             }
-            if (WIFSIGNALED(status)) {      // true when and only when killed
+            if (WIFSIGNALED(status)) { // true when and only when killed
                 syslog("program killed");
                 interpret_signal(WTERMSIG(status));
                 exit(EXIT_SUCCESS);
             }
-            if (WSTOPSIG(status) != SIGTRAP) {    // signaled, interpret signal
+            if (WSTOPSIG(status) != SIGTRAP) { // signaled, interpret signal
                 syslog("program was signaled");
                 interpret_signal(WSTOPSIG(status));
                 exit(EXIT_SUCCESS);
                 break;
             }
             int eax = ptrace(PTRACE_PEEKUSER, child, 4 * ORIG_EAX, NULL);
-            if (prohibit_syscall && is_denied_syscall(eax)) {   // denined syscall kill the child
+            if (prohibit_syscall && is_denied_syscall(eax)) { // denined syscall kill the child
                 syslog("FATAL: denied system call");
                 ptrace(PTRACE_KILL, child, NULL, NULL);
                 exit(EXIT_SUCCESS);
             }
-            ptrace(PTRACE_SYSCALL, child, NULL, NULL);
+            if (prohibit_syscall) {
+                ptrace(PTRACE_SYSCALL, child, NULL, NULL);
+            }
         }
     }
     return EXIT_SUCCESS;
@@ -201,18 +205,18 @@ void syslog(const char msg[]) {
 }
 
 int enable_rlimit() {
-#   define APPLY(type, value) \
-        getrlimit(type, &lim);\
-        lim.rlim_cur = (value);\
-        if (setrlimit(type, &lim) != 0) {\
-            return 0;\
-        }
+# define APPLY(type, value) \
+getrlimit(type, &lim);\
+lim.rlim_cur = (value);\
+if (setrlimit(type, &lim) != 0) {\
+return 0;\
+}
     struct rlimit lim;
-    APPLY(RLIMIT_CPU, time_limit);          // time limit
-    APPLY(RLIMIT_AS, memory_limit);         // memory limit
+    APPLY(RLIMIT_CPU, time_limit); // time limit
+    APPLY(RLIMIT_AS, memory_limit); // memory limit
     APPLY(RLIMIT_FSIZE, file_size);
     return 1;
-#   undef APPLY
+# undef APPLY
 }
 
 void report_rusage() {
@@ -297,14 +301,14 @@ void parse_args(int argc, char *argv[]) {
 void print_usage(int exitcode) {
     puts("USAGE: big_dog_guard [options] program [program's args]");
     puts("AVAILABLE OPTIONS:");
-    puts("  -h, --help\t\t\tprint help");
-    puts("  -t, --time <second>\t\tspecify the maximum time executing child (default 1 second)");
-    puts("  -m, --memory <byte>\t\tspecify the maximum memory child could use (default 1.28e9 bytes)");
-    puts("  -i, --input <file>\t\tspecify the file from which stdin redrects");
-    puts("  -o, --output <file>\t\tspecify the file to which stdout redrects");
-    puts("  -e, --stderr <file>\t\tspecify the file to which stderr redrects");
-    puts("  -f, --fsize <byte>\t\tspecify the maximum file size created");
-    puts("  --trust\t\t\ttrust the program and do not deny any system call.");
+    puts(" -h, --help\t\t\tprint help");
+    puts(" -t, --time <second>\t\tspecify the maximum time executing child (default 1 second)");
+    puts(" -m, --memory <byte>\t\tspecify the maximum memory child could use (default 1.28e9 bytes)");
+    puts(" -i, --input <file>\t\tspecify the file from which stdin redrects");
+    puts(" -o, --output <file>\t\tspecify the file to which stdout redrects");
+    puts(" -e, --stderr <file>\t\tspecify the file to which stderr redrects");
+    puts(" -f, --fsize <byte>\t\tspecify the maximum file size created");
+    puts(" --trust\t\t\ttrust the program and do not deny any system call.");
     exit(exitcode);
 }
 
@@ -358,4 +362,6 @@ int is_denied_syscall(int eax) {
     /* allowed */
     return 0;
 }
+
+
 
