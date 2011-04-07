@@ -99,6 +99,7 @@ char **executable_argv = NULL; // arguments provided to executable
 char *input_file = NULL; // input file (for redirection)
 char *output_file = NULL; // output file (for redirection)
 char *stderr_file = NULL; // stderr file (for redirection)
+int time_limit_ms = 1000; // time limit in ms
 rlim_t time_limit = 1; // time limit in second, default 1 second
 rlim_t memory_limit = 128000000; // memory limit in bytes, default 128M
 uid_t uid; // specified uid
@@ -156,7 +157,6 @@ int main(int argc, char *argv[]) {
             if (WIFEXITED(status) || (WIFSTOPPED(status) && WSTOPSIG(status) == SIGCHLD)) {
                 if (WIFSTOPPED(status) || WEXITSTATUS(status) == 0) { // normal exit, report resource usage
                     syslog("program exited normally");
-                    report("NORMAL_EXIT");
                     report_rusage();
                     exit(EXIT_SUCCESS);
                 } else { // non-zero returned
@@ -223,11 +223,18 @@ void report_rusage() {
     struct rusage usage;
     if (getrusage(RUSAGE_CHILDREN, &usage) == 0) {
         char buf[128];
+        double time = (double)usage.ru_utime.tv_usec / 1000000.0;
+        if (time >= time_limit_ms / 1000.0) {
+            report("SIGNALED\nSIGALRM\nTime Limit Exceeded");
+            exit(EXIT_SUCCESS);
+        }
+        report("NORMAL_EXIT");
         sprintf(buf, "%.3f second\n%ld bytes",
-                (double)usage.ru_utime.tv_usec / 1000000.0,
+                time,
                 usage.ru_minflt * getpagesize()
         );
         report(buf);
+        exit(EXIT_SUCCESS);
     } else {
         /* WHAT'S THE F**K? */
         syslog("getrusage() failed");
@@ -244,7 +251,8 @@ void parse_args(int argc, char *argv[]) {
                 fprintf(stderr, "Invalid operand for time.\n");
                 exit(EXIT_FAILURE);
             }
-            time_limit = tmp;
+            time_limit_ms = tmp;
+            time_limit = (tmp + 999) / 1000;
             ++i;
         } else if (strcmp(argv[i], "--fsize") == 0 || strcmp(argv[i], "-f") == 0) {
             if (i + 1 == argc || sscanf(argv[i + 1], "%d", &tmp) != 1) {
