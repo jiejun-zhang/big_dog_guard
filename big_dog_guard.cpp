@@ -136,9 +136,21 @@ int main(int argc, char *argv[]) {
         }
         if (enable_rlimit()) { // setrlimit() and we are about to exec
             if (prohibit_syscall) {
+                FILE *get_run_id;
+                int uid, gid;
+                get_run_id = popen("id -u nobody", "r");
+                fscanf(get_run_id, "%d", &uid);
+                pclose(get_run_id);
+                get_run_id = popen("id -g nobody", "r");
+                fscanf(get_run_id, "%d", &gid);
+                pclose(get_run_id);
+
+                setuid(uid);
+                setgid(gid);
                 ptrace(PTRACE_TRACEME, 0, NULL, NULL);
             }
             alarm(2 * time_limit);
+
             execvp(executable, executable_argv);
 
             /* not reached or failed to execvp */
