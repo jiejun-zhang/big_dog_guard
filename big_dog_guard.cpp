@@ -155,7 +155,7 @@ int main(int argc, char *argv[]) {
             }
             alarm(2 * time_limit);
 
-            execv(executable, executable_argv);
+            execvp(executable, executable_argv);
 
             /* not reached or failed to execvp */
             syslog("INTERNAL ERROR: execvp() failed.");
