@@ -64,8 +64,6 @@ the submitters, but it is intended to be debugging information.
 
 /*
 TO-DOs:
-+ setuid/setgui support
-+ chroot support
 + a complete prohibited syscalls list
 */
 
@@ -102,7 +100,7 @@ char *stderr_file = NULL; // stderr file (for redirection)
 int time_limit_ms = 1000; // time limit in ms
 rlim_t time_limit = 1; // time limit in second, default 1 second
 rlim_t memory_limit = 128000000; // memory limit in bytes, default 128M
-uid_t uid; // specified uid
+uid_t uid; // specifie uid
 gid_t gid; // specified gid
 bool prohibit_syscall = true; // do we prohibit syscall?
 int file_size = 1000000; // maximum file size created by child, default 1M
@@ -135,7 +133,7 @@ int main(int argc, char *argv[]) {
             close(errf);
         }
         if (enable_rlimit()) { // setrlimit() and we are about to exec
-            if (prohibit_syscall) {
+            if (prohibit_syscall && geteuid() == 0) {
                 FILE *get_run_id;
                 int uid, gid;
                 get_run_id = popen("id -u nobody", "r");
@@ -145,13 +143,19 @@ int main(int argc, char *argv[]) {
                 fscanf(get_run_id, "%d", &gid);
                 pclose(get_run_id);
 
+                chroot(".");
+                chdir("/");
+                chmod("/", 0777);
+
                 setuid(uid);
+                seteuid(uid);
                 setgid(gid);
+
                 ptrace(PTRACE_TRACEME, 0, NULL, NULL);
             }
             alarm(2 * time_limit);
 
-            execvp(executable, executable_argv);
+            execv(executable, executable_argv);
 
             /* not reached or failed to execvp */
             syslog("INTERNAL ERROR: execvp() failed.");
