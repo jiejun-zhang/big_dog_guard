@@ -71,6 +71,7 @@ TO-DOs:
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/reg.h>
+#include <bits/wordsize.h>
 #include <sys/syscall.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -193,7 +194,11 @@ int main(int argc, char *argv[]) {
                 exit(EXIT_SUCCESS);
                 break;
             }
+#if __WORDSIZE == 64
+            int eax = ptrace(PTRACE_PEEKUSER, child, 8 * ORIG_RAX, NULL);
+#else
             int eax = ptrace(PTRACE_PEEKUSER, child, 4 * ORIG_EAX, NULL);
+#endif
             if (prohibit_syscall && is_denied_syscall(eax)) { // denined syscall kill the child
                 syslog("FATAL: denied system call");
                 ptrace(PTRACE_KILL, child, NULL, NULL);
